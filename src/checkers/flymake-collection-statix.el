@@ -55,6 +55,20 @@
   :type '(repeat :tag "Arguments" (string :tag "Argument"))
   :group 'flymake-collection)
 
+;;;; Commands
+
+(defun flymake-collection-statix-fix ()
+  "Fix region at point using statix suggestion."
+  (interactive)
+  (when-let ((data (cl-loop for diagnostic in (flymake-diagnostics (point))
+                            for data = (flymake-diagnostic-data diagnostic)
+                            when data return data)))
+    (save-restriction
+      (widen)
+      (let-alist data
+        (delete-region .beg .end)
+        (insert .fix)))))
+
 ;;;; Functions
 
 ;;;;; Public
@@ -86,7 +100,8 @@ See URL `https://github.com/nerdypepper/statix'."
           (car (flymake-diag-region .buf .at.from.line .at.from.column))
           (car (flymake-diag-region .buf .at.to.line .at.to.column))
           (flymake-collection-statix--make-type it)
-          .message)))
+          (concat .message (when .suggestion " {fix}"))
+          (flymake-collection-statix--make-data it))))
 
 ;;;;; Private
 
@@ -99,6 +114,20 @@ contain severity."
       ("Warn" :warning)
       ("Error" :error)
       ("Hint" :note))))
+
+(defun flymake-collection-statix--make-data (it)
+  "Make diagnostic data from IT.
+Data contains fix information if suggestion is present.  See
+`flymake-collection-define-enumerate' for IT.  IT must contain
+buf."
+  (let-alist it
+    (when .suggestion
+      (let ((buf .buf)
+            (fix .suggestion.fix))
+        (let-alist .suggestion.at
+          `((beg . ,(car (flymake-diag-region buf .from.line .from.column)))
+            (end . ,(car (flymake-diag-region buf .to.line .to.column)))
+            (fix . ,fix)))))))
 
 (provide 'flymake-collection-statix)
 
